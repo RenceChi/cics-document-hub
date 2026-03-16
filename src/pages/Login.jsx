@@ -22,8 +22,11 @@ export default function Login() {
         // --- SIGN UP LOGIC ---
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
+        
+        // 1. Define your VIP Admin emails here (all lowercase!)
         const adminEmails = [
-          "jcesperanza@neu.edu.ph" 
+          "clark.admin@gmail.com", // Add your own email so you get admin rights!
+          "professor.name@neu.edu.ph" // Add your professor's exact email here
         ];
 
         // 2. Check if the email they typed is on the VIP list
