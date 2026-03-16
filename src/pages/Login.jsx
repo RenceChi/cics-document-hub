@@ -17,13 +17,6 @@ export default function Login() {
     setIsLoading(true);
     const auth = getAuth();
 
-    // STRICT DOOR: Block non-NEU emails immediately (Ignore case sensitivity)
-    if (!email.trim().toLowerCase().endsWith("@neu.edu.ph")) {
-      setError("Access Restricted: Only @neu.edu.ph emails are permitted.");
-      setIsLoading(false);
-      return;
-    }
-
     try {
       if (isSignUpMode) {
         // --- SIGN UP LOGIC ---
@@ -115,7 +108,7 @@ export default function Login() {
             
             <input 
               type="email" 
-              placeholder="NEU Email Address" 
+              placeholder="Email Address" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full border border-slate-200 p-3 rounded-lg focus:outline-none focus:border-[#003366]"
@@ -137,10 +130,6 @@ export default function Login() {
             >
               {isLoading ? "Processing..." : (isSignUpMode ? "Sign Up" : "Sign In")}
             </button>
-
-            <p className="text-center text-xs text-[#003366]/60 font-medium italic mt-4">
-              Strictly @neu.edu.ph emails allowed
-            </p>
           </form>
 
           {/* TOGGLE BUTTON */}
@@ -164,7 +153,7 @@ export default function Login() {
 
       {/* Footer */}
       <footer className="p-8 text-center text-slate-400 text-sm">
-        <p>© 2024 College of Informatics and Computing Sciences. New Era University.</p>
+        <p>© 2026 College of Informatics and Computing Sciences. New Era University.</p>
       </footer>
     </div>
   );
