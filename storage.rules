@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Protects everything inside the storage bucket
+    match /{allPaths=**} {
+      // Students can view and download files
+      allow read: if request.auth != null;
+      
+      // Only Admins can upload new files
+      allow create, update: if request.auth != null && request.auth.token.admin == true;
+      
+      // Block deletion to protect course materials
+      allow delete: if false;
+    }
+  }
+}

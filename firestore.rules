@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // HELPER FUNCTIONS
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isLoggedIn() && request.auth.token.admin == true;
+    }
+
+    // 1. DOCUMENTS COLLECTION
+    match /documents/{documentId} {
+      // Anyone logged in can read/download
+      allow read: if isLoggedIn();
+      // Only admins can upload new documents or edit them
+      allow create, update: if isAdmin();
+      // NO ONE can delete documents (soft-delete is safer for analytics)
+      allow delete: if false; 
+    }
+
+    // 2. USERS COLLECTION
+    match /users/{userId} {
+      // Users can read and update their OWN profile
+      allow read, update: if isLoggedIn() && request.auth.uid == userId;
+      // Admins can do anything to user profiles
+      allow read, write: if isAdmin();
+    }
+
+    // 3. ACTIVITY LOGS (For your trackingService)
+    match /activity_logs/{logId} {
+      // Students need to be able to create logs when they login/download
+      allow create: if isLoggedIn() && request.resource.data.userId == request.auth.uid;
+      // Only admins can actually read the logs to generate charts
+      allow read: if isAdmin();
+      allow update, delete: if false; // Logs should never be altered
+    }
+  }
+}
