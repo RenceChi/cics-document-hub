@@ -23,11 +23,20 @@ export default function Login() {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
         
-        // Build their initial Firestore profile
+        // 1. Define your VIP Admin emails here (all lowercase!)
+        const adminEmails = [
+          "clarkching2004@gmail.com", 
+          "jcesperanza@neu.edu.ph" 
+        ];
+
+        // 2. Check if the email they typed is on the VIP list
+        const isVipAdmin = adminEmails.includes(user.email.toLowerCase());
+
+        // 3. Build their initial Firestore profile based on who they are
         await setDoc(doc(db, "users", user.uid), {
           email: user.email,
-          role: "student",
-          programId: "UNKNOWN", // This forces them to the Onboarding screen
+          role: isVipAdmin ? "admin" : "student", // Automatically assigns the right role!
+          programId: isVipAdmin ? "ADMIN" : "UNKNOWN", // Skips onboarding for admins
           isBlocked: false,
           createdAt: serverTimestamp()
         });
