@@ -3,7 +3,7 @@
 A centralized academic resource management platform designed for the College of Informatics and Computing Sciences (CICS) at New Era University. This application provides a secure environment for administrators to upload course materials and for students to easily filter, search, and download verified resources based on their specific degree programs.
 
 ## 🚀 Live Demo
-**View the live application here:**[https://cics-document-hub.vercel.app](https://cics-document-hub.vercel.app))*
+**View the live application here:** [https://cics-document-hub.vercel.app](https://cics-document-hub.vercel.app))
 
 ## ✨ Key Features
 * **Role-Based Access Control (RBAC):** Distinct interfaces and permissions for Students and Administrators.
