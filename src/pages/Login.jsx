@@ -25,8 +25,7 @@ export default function Login() {
         
         // 1. Define your VIP Admin emails here (all lowercase!)
         const adminEmails = [
-          "clark.admin@gmail.com", // Add your own email so you get admin rights!
-          "professor.name@neu.edu.ph" // Add your professor's exact email here
+          "jcesperanza@neu.edu.ph" // Add your professor's exact email here
         ];
 
         // 2. Check if the email they typed is on the VIP list
