@@ -1,16 +1,22 @@
-# React + Vite
+# 🏛️ CICS Document Hub
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A centralized academic resource management platform designed for the College of Informatics and Computing Sciences (CICS) at New Era University. This application provides a secure environment for administrators to upload course materials and for students to easily filter, search, and download verified resources based on their specific degree programs.
 
-Currently, two official plugins are available:
+## 🚀 Live Demo
+**View the live application here:**(e.g., https://cics-document-hub.vercel.app)](https://cics-document-hub.vercel.app)*
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## ✨ Key Features
+* **Role-Based Access Control (RBAC):** Distinct interfaces and permissions for Students and Administrators.
+* **Smart Student Hub:** Dynamic document filtering by category (Lecture Notes, Lab Manuals, Past Exams) and degree program (Computer Science, Information Systems, Cybersecurity, etc.).
+* **Admin Analytics Dashboard:** Visualized metrics tracking total documents, active students, and real-time login engagement.
+* **Streamlined Document Management:** Secure PDF uploading directly to cloud storage with automatic file size calculation and metadata tagging.
+* **Automated Onboarding:** Seamless profile creation that directs new users to select their academic program upon first login.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 🛠️ Tech Stack
+* **Frontend:** React (Vite), Tailwind CSS
+* **Backend as a Service (BaaS):** Firebase
+  * **Authentication:** Secure user login and registration.
+  * **Firestore:** NoSQL database managing user roles, document metadata, and analytical tracking.
+  * **Cloud Storage:** Secure hosting for PDF files.
+* **Data Visualization:** Recharts
+* **Deployment:** Vercel
