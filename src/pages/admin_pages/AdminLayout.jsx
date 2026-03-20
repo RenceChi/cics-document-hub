@@ -66,13 +66,6 @@ export default function AdminLayout({ adminUser }) {
             <span className="material-symbols-outlined text-[20px]">group</span>
             Manage Students
           </Link>
-          
-          <Link to="/admin/settings" onClick={() => setIsSidebarOpen(false)}
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-colors ${isActive('settings') ? 'bg-[#003366] text-white shadow-md shadow-[#003366]/20' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}
-          >
-            <span className="material-symbols-outlined text-[20px]">settings</span>
-            Settings
-          </Link>
         </nav>
 
         {/* Bottom Profile Area */}
