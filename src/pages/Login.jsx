@@ -6,8 +6,13 @@ import { logUserAction } from "../services/trackingService";
 
 export default function Login() {
   const [isSignUpMode, setIsSignUpMode] = useState(false); // Toggles between Login and Sign Up
+  
+  // Form States
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");             // NEW: Added for Sign Up
+  const [studentId, setStudentId] = useState("");   // NEW: Added for Sign Up
+  
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -31,11 +36,13 @@ export default function Login() {
         // 2. Check if the email they typed is on the VIP list
         const isVipAdmin = adminEmails.includes(user.email.toLowerCase());
 
-        // 3. Build their initial Firestore profile based on who they are
+        // 3. Build their initial Firestore profile with Name and ID included
         await setDoc(doc(db, "users", user.uid), {
           email: user.email,
-          role: isVipAdmin ? "admin" : "student", // Automatically assigns the right role!
-          programId: isVipAdmin ? "ADMIN" : "UNKNOWN", // Skips onboarding for admins
+          name: name,               // Saves the name
+          studentId: studentId,     // Saves the ID
+          role: isVipAdmin ? "admin" : "student", 
+          programId: isVipAdmin ? "ADMIN" : "UNKNOWN", 
           isBlocked: false,
           createdAt: serverTimestamp()
         });
@@ -114,6 +121,28 @@ export default function Login() {
           <form onSubmit={handleAuth} className="space-y-4">
             {error && <p className="text-red-500 text-sm text-center bg-red-50 p-2 rounded">{error}</p>}
             
+            {/* Conditional Fields: Only show Name and ID if signing up */}
+            {isSignUpMode && (
+              <>
+                <input 
+                  type="text" 
+                  placeholder="Full Name" 
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full border border-slate-200 p-3 rounded-lg focus:outline-none focus:border-[#003366]"
+                  required
+                />
+                <input 
+                  type="text" 
+                  placeholder="Student ID (e.g., 2021-10042)" 
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                  className="w-full border border-slate-200 p-3 rounded-lg focus:outline-none focus:border-[#003366]"
+                  required
+                />
+              </>
+            )}
+
             <input 
               type="email" 
               placeholder="Email Address" 

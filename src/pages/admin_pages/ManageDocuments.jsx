@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db, storage } from '../../firebase'; // Make sure this path is correct!
+import { db, storage } from '../../firebase'; 
 import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 
@@ -18,12 +18,43 @@ const ManageDocuments = () => {
   const fetchDocuments = async () => {
     const querySnapshot = await getDocs(collection(db, 'documents'));
     const docsArray = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Sort by newest first (assuming createdAt exists, fallback to standard array push)
+    docsArray.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
     setDocuments(docsArray);
   };
 
   useEffect(() => {
     fetchDocuments();
   }, []);
+
+  // Calculate dynamic stats
+  // 1. Storage Used
+  const totalStorageMB = documents.reduce((acc, doc) => {
+    const sizeStr = doc.size || "0 MB";
+    const num = parseFloat(sizeStr.replace(' MB', ''));
+    return acc + (isNaN(num) ? 0 : num);
+  }, 0);
+  const storageDisplay = totalStorageMB > 1024 ? `${(totalStorageMB / 1024).toFixed(2)} GB` : `${totalStorageMB.toFixed(1)} MB`;
+
+  // 2. Uploaded Last 30 Days
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  
+  const recentUploadsCount = documents.filter(doc => {
+    if (!doc.createdAt) return false;
+    // Convert Firestore timestamp to JavaScript Date
+    return doc.createdAt.toDate() >= thirtyDaysAgo;
+  }).length;
+
+  // 3. Total Downloads (Replacing "Pending Review")
+  const totalDownloads = documents.reduce((acc, doc) => acc + (doc.downloadCount || 0), 0);
+
+  // Helper to format Firestore timestamps
+  const formatDate = (timestamp) => {
+    if (!timestamp) return 'Just now';
+    const date = timestamp.toDate();
+    return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+  };
 
   // 1. Triggers when Admin selects a file from their computer
   const handleFileSelect = (e) => {
@@ -79,7 +110,7 @@ const ManageDocuments = () => {
   };
 
   const handleEdit = async (id, currentTitle) => {
-    const newTitle = window.prompt("Enter new title:", currentTitle);
+    const newTitle = window.prompt("Enter new document title:", currentTitle);
     if (!newTitle || newTitle === currentTitle) return;
 
     await updateDoc(doc(db, 'documents', id), { title: newTitle });
@@ -87,7 +118,7 @@ const ManageDocuments = () => {
   };
 
   const handleDelete = async (id, storageRefPath) => {
-    if (!window.confirm("Are you sure you want to delete this document?")) return;
+    if (!window.confirm("Are you sure you want to permanently delete this document?")) return;
 
     try {
       if (storageRefPath) {
@@ -103,60 +134,156 @@ const ManageDocuments = () => {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto relative">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Manage Documents</h1>
+    <div className="min-h-full bg-[#f8fafc] p-8 pb-16">
+      
+      {/* HEADER AREA */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <label className={`px-4 py-2 rounded font-bold cursor-pointer transition-colors ${isUploading ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-[#003366] text-white hover:bg-[#002244]'}`}>
-            {isUploading ? `Uploading ${Math.round(uploadProgress)}%` : '+ Upload PDF'}
-            <input type="file" accept="application/pdf" className="hidden" onChange={handleFileSelect} disabled={isUploading} />
-          </label>
+          <h1 className="text-3xl font-extrabold text-[#003366] tracking-tight uppercase">Manage Documents</h1>
+          <p className="text-slate-500 text-sm mt-1 max-w-2xl">
+            Centralized repository for institutional records, curriculum guides, and student submissions for the College of Information and Computing Sciences.
+          </p>
+        </div>
+        <label className={`px-5 py-3 rounded-lg font-bold cursor-pointer transition-colors flex items-center gap-2 shadow-sm ${isUploading ? 'bg-slate-400 text-white cursor-not-allowed' : 'bg-[#003366] text-white hover:bg-[#002244]'}`}>
+          <span className="material-symbols-outlined text-[20px]">upload_file</span>
+          {isUploading ? `UPLOADING ${Math.round(uploadProgress)}%` : 'UPLOAD NEW PDF'}
+          <input type="file" accept="application/pdf" className="hidden" onChange={handleFileSelect} disabled={isUploading} />
+        </label>
+      </div>
+
+      {/* STATS CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-[#003366]">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Total Repository</h3>
+          <span className="text-3xl font-extrabold text-slate-900">{documents.length.toLocaleString()}</span>
+        </div>
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-[#003366]">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">PDFs Uploaded (30D)</h3>
+          {/* Now uses real 30-day math! */}
+          <span className="text-3xl font-extrabold text-slate-900">{recentUploadsCount}</span> 
+        </div>
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-emerald-500">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Total Downloads</h3>
+          {/* Changed from Pending Review to Downloads! */}
+          <span className="text-3xl font-extrabold text-emerald-600">{totalDownloads.toLocaleString()}</span> 
+        </div>
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-[#003366]">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Storage Used</h3>
+          <span className="text-3xl font-extrabold text-slate-900">{storageDisplay}</span>
         </div>
       </div>
 
-      <table className="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
-        <thead className="bg-gray-50 text-left text-sm font-semibold text-gray-600">
-          <tr>
-            <th className="px-6 py-3 border-b">Title</th>
-            <th className="px-6 py-3 border-b">Program</th>
-            <th className="px-6 py-3 border-b">Category</th>
-            <th className="px-6 py-3 border-b">Size</th>
-            <th className="px-6 py-3 border-b">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="text-sm">
-          {documents.length === 0 ? (
-             <tr><td colSpan="5" className="text-center py-8 text-gray-500">No documents found.</td></tr>
-          ) : documents.map((doc) => (
-            <tr key={doc.id} className="border-b hover:bg-gray-50">
-              <td className="px-6 py-4 font-medium text-gray-900">{doc.title}</td>
-              <td className="px-6 py-4 text-gray-600">{doc.programId}</td>
-              <td className="px-6 py-4 text-gray-600"><span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-bold">{doc.category}</span></td>
-              <td className="px-6 py-4 text-gray-600">{doc.size}</td>
-              <td className="px-6 py-4 space-x-4">
-                <button onClick={() => handleEdit(doc.id, doc.title)} className="text-blue-600 hover:text-blue-800 font-medium">Edit</button>
-                <button onClick={() => handleDelete(doc.id, doc.storageRefPath)} className="text-red-600 hover:text-red-800 font-medium">Delete</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* MAIN TABLE CONTAINER */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+        
+        {/* Table Toolbar */}
+        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+          <h2 className="text-sm font-extrabold text-[#003366] tracking-wider uppercase">Document Archive</h2>
+          <div className="flex gap-2">
+            <button className="px-4 py-2 border border-slate-200 bg-white text-slate-600 rounded-md text-xs font-bold shadow-sm hover:bg-slate-50 flex items-center gap-2 transition-colors">
+               <span className="material-symbols-outlined text-[16px]">filter_list</span> Filter
+            </button>
+            <button className="px-4 py-2 border border-slate-200 bg-white text-slate-600 rounded-md text-xs font-bold shadow-sm hover:bg-slate-50 flex items-center gap-2 transition-colors">
+               <span className="material-symbols-outlined text-[16px]">download</span> Export CSV
+            </button>
+          </div>
+        </div>
 
-      {/* UPLOAD DETAILS MODAL */}
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead className="bg-white text-[10px] text-slate-400 uppercase tracking-widest font-extrabold border-b border-slate-100">
+              <tr>
+                <th className="px-6 py-4">Document Name</th>
+                <th className="px-6 py-4">Uploader</th>
+                <th className="px-6 py-4">Date Uploaded</th>
+                <th className="px-6 py-4">Program Tag</th>
+                <th className="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {documents.length === 0 ? (
+                <tr><td colSpan="5" className="p-8 text-center text-slate-500 font-medium">No documents in repository.</td></tr>
+              ) : documents.map((doc) => (
+                <tr key={doc.id} className="hover:bg-slate-50/80 transition-colors group">
+                  
+                  {/* Name & Icon */}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-4">
+                      <span className="material-symbols-outlined text-red-500 text-3xl opacity-90">picture_as_pdf</span>
+                      <div>
+                        <p className="font-bold text-slate-900 line-clamp-1 max-w-md">{doc.title}</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">{doc.size || 'Unknown Size'} • PDF Document</p>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Uploader Mock */}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                       <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold">SA</div>
+                       <span className="text-sm font-medium text-slate-700">System Admin</span>
+                    </div>
+                  </td>
+
+                  {/* Date */}
+                  <td className="px-6 py-4 text-slate-500 font-medium text-sm">
+                    {formatDate(doc.createdAt)}
+                  </td>
+
+                  {/* Program Tag */}
+                  <td className="px-6 py-4">
+                    <span className="px-2.5 py-1 bg-slate-100 text-[#003366] rounded text-[10px] font-extrabold uppercase tracking-wider">
+                      {doc.programId === "Computer Science" ? "CS" : 
+                       doc.programId === "Information Systems" ? "IS" : 
+                       doc.programId === "Cybersecurity" ? "CYB" : 
+                       doc.programId === "Information Technology" ? "IT" : 
+                       doc.programId === "Data Science" ? "DS" : doc.programId}
+                    </span>
+                  </td>
+
+                  {/* Action Icons */}
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => handleEdit(doc.id, doc.title)} className="p-1.5 text-slate-400 hover:text-[#003366] rounded hover:bg-slate-100 transition-colors" title="Edit Title">
+                        <span className="material-symbols-outlined text-[18px]">edit</span>
+                      </button>
+                      <a href={doc.downloadUrl} target="_blank" rel="noreferrer" className="p-1.5 text-slate-400 hover:text-[#003366] rounded hover:bg-slate-100 transition-colors" title="Download">
+                        <span className="material-symbols-outlined text-[18px]">download</span>
+                      </a>
+                      <button onClick={() => handleDelete(doc.id, doc.storageRefPath)} className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors" title="Delete">
+                        <span className="material-symbols-outlined text-[18px]">delete</span>
+                      </button>
+                    </div>
+                  </td>
+
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* Pagination Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-between items-center text-xs text-slate-500">
+          <span>Showing 1 to {documents.length} of {documents.length} results</span>
+        </div>
+      </div>
+
+      {/* UPLOAD DETAILS MODAL (Hidden by default) */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Document Details</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-slate-100">
+            <h2 className="text-xl font-bold text-slate-900 mb-4">Document Details</h2>
             <form onSubmit={handleConfirmUpload} className="space-y-4">
               
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Document Title</label>
-                <input type="text" value={fileTitle} onChange={(e) => setFileTitle(e.target.value)} className="w-full border border-gray-300 rounded p-2 focus:border-[#003366] outline-none" required />
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Document Title</label>
+                <input type="text" value={fileTitle} onChange={(e) => setFileTitle(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#003366]" required />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Target Program</label>
-                <select value={programId} onChange={(e) => setProgramId(e.target.value)} className="w-full border border-gray-300 rounded p-2 outline-none">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Target Program</label>
+                <select value={programId} onChange={(e) => setProgramId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#003366]">
                   <option value="Computer Science">Computer Science</option>
                   <option value="Information Systems">Information Systems</option>
                   <option value="Cybersecurity">Cybersecurity</option>
@@ -166,17 +293,17 @@ const ManageDocuments = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Category</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full border border-gray-300 rounded p-2 outline-none">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Category</label>
+                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#003366]">
                   <option value="Lecture Notes">Lecture Notes</option>
                   <option value="Past Exams">Past Exams</option>
                   <option value="Lab Manuals">Lab Manuals</option>
                 </select>
               </div>
 
-              <div className="flex gap-3 pt-4 border-t">
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2 bg-gray-100 text-gray-700 rounded font-bold hover:bg-gray-200 transition-colors">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-[#003366] text-white rounded font-bold hover:bg-[#002244] transition-colors">Upload</button>
+              <div className="flex gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-lg font-bold hover:bg-slate-200 transition-colors text-sm">Cancel</button>
+                <button type="submit" className="flex-1 py-3 bg-[#003366] text-white rounded-lg font-bold hover:bg-[#002244] transition-colors text-sm shadow-sm">Confirm Upload</button>
               </div>
             </form>
           </div>

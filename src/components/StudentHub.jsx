@@ -168,9 +168,19 @@ export default function StudentHub({ currentUser }) {
               <h1 className="text-3xl font-bold text-slate-900">Document Library</h1>
               <p className="text-slate-500 text-sm mt-1">Browse and download verified academic resources for your courses.</p>
             </div>
+            
+            {/* Added Filter and Sort buttons to match the wireframe */}
+            <div className="flex items-center gap-3">
+               <button className="px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-lg text-sm font-bold shadow-sm hover:bg-slate-50 flex items-center gap-2 transition-colors">
+                 <span className="material-symbols-outlined text-[18px]">filter_list</span> Filter
+               </button>
+               <button className="px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-lg text-sm font-bold shadow-sm hover:bg-slate-50 flex items-center gap-2 transition-colors">
+                 <span className="material-symbols-outlined text-[18px]">sort</span> Sort
+               </button>
+            </div>
           </div>
 
-          {/* Document Grid - FIXED STRETCHING ISSUE */}
+          {/* Document Grid - CHANGED TO CSS GRID FOR PERFECT ALIGNMENT */}
           {isLoading ? (
             <div className="py-10 text-center text-slate-500 font-bold">Loading your resources...</div>
           ) : filteredDocuments.length === 0 ? (
@@ -179,8 +189,7 @@ export default function StudentHub({ currentUser }) {
                <p>No documents match your selected filters.</p>
             </div>
           ) : (
-            // Flex layout instead of grid ensures cards stay their exact max-width and wrap nicely
-            <div className="flex flex-wrap gap-6 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {filteredDocuments.map(doc => (
                  <DocumentCard key={doc.id} doc={doc} onDownload={handleDownload} />
               ))}
