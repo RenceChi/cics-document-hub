@@ -1,21 +1,31 @@
 import React, { useState } from "react";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup
+} from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase"; 
 import { logUserAction } from "../services/trackingService";
 
 export default function Login() {
-  const [isSignUpMode, setIsSignUpMode] = useState(false); // Toggles between Login and Sign Up
+  const [isSignUpMode, setIsSignUpMode] = useState(false);
   
   // Form States
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");             // NEW: Added for Sign Up
-  const [studentId, setStudentId] = useState("");   // NEW: Added for Sign Up
+  const [name, setName] = useState("");             
+  const [studentId, setStudentId] = useState("");   
   
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  // Define VIP Admin emails here
+  const adminEmails = ["jcesperanza@neu.edu.ph"];
+
+  // --- STANDARD EMAIL AUTH ---
   const handleAuth = async (e) => {
     e.preventDefault();
     setError("");
@@ -24,23 +34,14 @@ export default function Login() {
 
     try {
       if (isSignUpMode) {
-        // --- SIGN UP LOGIC ---
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
-        
-        // 1. Define your VIP Admin emails here (all lowercase!)
-        const adminEmails = [
-          "jcesperanza@neu.edu.ph" // Add your professor's exact email here
-        ];
-
-        // 2. Check if the email they typed is on the VIP list
         const isVipAdmin = adminEmails.includes(user.email.toLowerCase());
 
-        // 3. Build their initial Firestore profile with Name and ID included
         await setDoc(doc(db, "users", user.uid), {
           email: user.email,
-          name: name,               // Saves the name
-          studentId: studentId,     // Saves the ID
+          name: name,               
+          studentId: studentId,     
           role: isVipAdmin ? "admin" : "student", 
           programId: isVipAdmin ? "ADMIN" : "UNKNOWN", 
           isBlocked: false,
@@ -48,11 +49,9 @@ export default function Login() {
         });
 
       } else {
-        // --- LOG IN LOGIC ---
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
         
-        // Quickly fetch their doc to log the login action if they are already setup
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
           const data = userDoc.data();
@@ -61,12 +60,8 @@ export default function Login() {
           }
         }
       }
-      
-      // Note: App.jsx handles the redirect automatically when auth state changes!
-
     } catch (err) {
       console.error(err);
-      // Make Firebase errors look a little friendlier to the user
       if (err.code === 'auth/email-already-in-use') {
         setError("This email is already registered. Try signing in instead.");
       } else if (err.code === 'auth/weak-password') {
@@ -75,6 +70,50 @@ export default function Login() {
         setError("Incorrect email or password.");
       } else {
         setError("Authentication failed. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- GOOGLE AUTH LOGIC ---
+  const handleGoogleAuth = async () => {
+    setError("");
+    setIsLoading(true);
+    const auth = getAuth();
+    const provider = new GoogleAuthProvider();
+
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      
+      const userRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userRef);
+
+      // If they are logging in with Google for the FIRST time, provision their Firestore document
+      if (!userDoc.exists()) {
+        const isVipAdmin = adminEmails.includes(user.email.toLowerCase());
+
+        await setDoc(userRef, {
+          email: user.email,
+          name: user.displayName || "Google User",
+          studentId: "", // They can update this later in profile or onboarding
+          role: isVipAdmin ? "admin" : "student",
+          programId: isVipAdmin ? "ADMIN" : "UNKNOWN",
+          isBlocked: false,
+          createdAt: serverTimestamp()
+        });
+      } else {
+        // Existing user logging in
+        const data = userDoc.data();
+        if (data.programId && data.programId !== "UNKNOWN" && data.role !== "admin") {
+          logUserAction(user.uid, data.programId, "LOGIN").catch(console.warn);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      if (err.code !== 'auth/popup-closed-by-user') {
+        setError("Google Sign-In failed. Please try again.");
       }
     } finally {
       setIsLoading(false);
@@ -96,17 +135,10 @@ export default function Login() {
       </header>
 
       <main className="flex-grow flex flex-col items-center justify-center p-6 relative">
-        {/* Decorative Background */}
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-20">
-          <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-[#003366]/20 blur-3xl"></div>
-          <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] rounded-full bg-[#003366]/10 blur-3xl"></div>
-        </div>
-
-        {/* Main Auth Card */}
         <div className="w-full max-w-md bg-white rounded-xl shadow-xl border border-[#003366]/5 p-8 z-10">
-          <div className="flex flex-col items-center text-center mb-8">
-            <div className="w-20 h-20 bg-[#003366]/5 rounded-full flex items-center justify-center mb-4">
-              <span className="material-symbols-outlined text-[#003366] text-4xl">
+          <div className="flex flex-col items-center text-center mb-6">
+            <div className="w-16 h-16 bg-[#003366]/5 rounded-full flex items-center justify-center mb-4">
+              <span className="material-symbols-outlined text-[#003366] text-3xl">
                 {isSignUpMode ? 'person_add' : 'school'}
               </span>
             </div>
@@ -118,10 +150,9 @@ export default function Login() {
             </p>
           </div>
 
+          {error && <p className="text-red-500 text-sm text-center bg-red-50 p-3 rounded-lg mb-4">{error}</p>}
+
           <form onSubmit={handleAuth} className="space-y-4">
-            {error && <p className="text-red-500 text-sm text-center bg-red-50 p-2 rounded">{error}</p>}
-            
-            {/* Conditional Fields: Only show Name and ID if signing up */}
             {isSignUpMode && (
               <>
                 <input 
@@ -169,14 +200,31 @@ export default function Login() {
             </button>
           </form>
 
-          {/* TOGGLE BUTTON */}
+          {/* GOOGLE DIVIDER */}
+          <div className="mt-6 flex items-center justify-between">
+            <span className="w-1/5 border-b border-slate-200 lg:w-1/4"></span>
+            <span className="text-xs text-center text-slate-500 uppercase">or continue with</span>
+            <span className="w-1/5 border-b border-slate-200 lg:w-1/4"></span>
+          </div>
+
+          {/* GOOGLE BUTTON */}
+          <button 
+            onClick={handleGoogleAuth}
+            disabled={isLoading}
+            className="w-full mt-4 flex items-center justify-center gap-3 py-3 px-4 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
+          >
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google Logo" className="w-5 h-5" />
+            Google
+          </button>
+
+          {/* TOGGLE MODE */}
           <div className="mt-6 pt-6 border-t border-slate-100 text-center">
             <p className="text-sm text-slate-500">
               {isSignUpMode ? "Already have an account? " : "Don't have an account? "}
               <button 
                 onClick={() => {
                   setIsSignUpMode(!isSignUpMode);
-                  setError(""); // Clear errors when switching modes
+                  setError(""); 
                 }} 
                 className="text-[#003366] font-bold hover:underline"
               >
@@ -184,14 +232,8 @@ export default function Login() {
               </button>
             </p>
           </div>
-
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="p-8 text-center text-slate-400 text-sm">
-        <p>© 2026 College of Informatics and Computing Sciences. New Era University.</p>
-      </footer>
     </div>
   );
 }

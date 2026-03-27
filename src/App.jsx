@@ -1,58 +1,66 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore"; // Changed getDoc to onSnapshot
 import { db } from "./firebase"; 
 
-// Adjusting paths based on your folder structure
 import Login from "./pages/Login"; 
 import StudentHub from "./components/StudentHub";
 import AdminDashboard from './pages/admin_pages/AdminDashboard';
 import AdminLayout from './pages/admin_pages/AdminLayout'; 
-import ManageDocuments from './pages/admin_pages/ManageDocuments'; // Add this! (Check your path)
-import ManageStudents from './pages/admin_pages/ManageStudents'; // Add this! (Check your path)
-import Onboarding from "./pages/Onboarding"; // Your standalone onboarding page
+import ManageDocuments from './pages/admin_pages/ManageDocuments'; 
+import ManageStudents from './pages/admin_pages/ManageStudents'; 
+import Onboarding from "./pages/Onboarding"; 
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // This "listens" to Firebase for any login/logout changes
   useEffect(() => {
     const auth = getAuth();
+    let unsubscribeSnapshot = null;
     
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
-        try {
-          const userDocRef = doc(db, "users", user.uid);
-          const userDoc = await getDoc(userDocRef);
-          
-          if (userDoc.exists()) {
-            const data = userDoc.data();
+        // Use onSnapshot instead of getDoc to listen to live Firestore changes
+        // This fixes the race condition where Auth triggers before Firestore data is fully written
+        const userDocRef = doc(db, "users", user.uid);
+        
+        unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
             const safeRole = data.role ? String(data.role).trim().toLowerCase() : "student";
+            
             setCurrentUser({ 
               uid: user.uid, 
-              role: safeRole, // Explicitly grab the role
+              role: safeRole, 
               programId: data.programId || "UNKNOWN", 
               ...data 
             });
+            setLoading(false);
           } else {
-            setCurrentUser({ uid: user.uid, role: "student", programId: "UNKNOWN" });
+            // User exists in Auth but Firestore doc isn't written yet.
+            // We do nothing and wait. The snapshot will fire again instantly once setDoc finishes in Login.jsx
           }
-        } catch (error) {
+        }, (error) => {
           console.error("Error fetching user data:", error);
-        }
+          setLoading(false);
+        });
+
       } else {
         setCurrentUser(null);
+        setLoading(false);
+        if (unsubscribeSnapshot) unsubscribeSnapshot();
       }
-      setLoading(false); 
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeSnapshot) unsubscribeSnapshot();
+    };
   }, []);
 
   if (loading) {
-    console.log("CURRENT USER STATE:", currentUser);
     return (
       <div className="flex h-screen items-center justify-center bg-[#f5f7f8]">
         <div className="text-[#003366] font-bold text-xl">Loading CICS Hub...</div>
@@ -64,65 +72,72 @@ export default function App() {
     <Router>
       <Routes>
         
-        {/* LOGIN ROUTE: Smart redirect based on role */}
+        {/* LOGIN ROUTE */}
         <Route 
           path="/login" 
           element={
             !currentUser ? (
               <Login />
             ) : currentUser.role === "admin" ? (
-              <Navigate to="/admin/dashboard" />
+              <Navigate to="/admin/dashboard" replace />
             ) : currentUser.programId === "UNKNOWN" ? (
-              <Navigate to="/onboarding" />
+              <Navigate to="/onboarding" replace />
             ) : (
-              <Navigate to="/hub" />
+              <Navigate to="/hub" replace />
             )
           } 
         />
 
-        {/* ONBOARDING: Only for students who haven't picked a program */}
+        {/* ONBOARDING */}
         <Route 
           path="/onboarding" 
           element={
-            currentUser && currentUser.role !== "admin" ? (
-              <Onboarding />
+            !currentUser ? (
+               <Navigate to="/login" replace />
+            ) : currentUser.role === "admin" ? (
+               <Navigate to="/admin/dashboard" replace />
+            ) : currentUser.programId !== "UNKNOWN" ? (
+               <Navigate to="/hub" replace /> 
             ) : (
-              <Navigate to="/login" />
+               <Onboarding />
             )
           } 
         />
         
-        {/* HUB: Only for students */}
+        {/* HUB */}
         <Route 
           path="/hub" 
           element={
-            currentUser && currentUser.role === "student" ? (
-              <StudentHub currentUser={currentUser} />
+            !currentUser ? (
+              <Navigate to="/login" replace />
+            ) : currentUser.role === "admin" ? (
+              <Navigate to="/admin/dashboard" replace />
+            ) : currentUser.programId === "UNKNOWN" ? (
+              <Navigate to="/onboarding" replace />
             ) : (
-              <Navigate to="/login" />
+              <StudentHub currentUser={currentUser} />
             )
           } 
         />
         
-        {/* ADMIN ROUTES: Strictly guarded by role */}
+        {/* ADMIN ROUTES */}
         <Route 
           path="/admin" 
           element={
             currentUser && currentUser.role === "admin" ? (
               <AdminLayout adminUser={currentUser} />
             ) : (
-              <Navigate to="/login" />
+              <Navigate to="/login" replace />
             )
           }
         >
-          <Route index element={<Navigate to="dashboard" />} />
-          
+          <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="users" element={<ManageStudents />} />
           <Route path="documents" element={<ManageDocuments />} />
         </Route>
 
-        {/* CATCH-ALL: Sends users to their respective "Home" if they type a random URL */}
+        {/* CATCH-ALL */}
         <Route 
           path="*" 
           element={
@@ -132,7 +147,7 @@ export default function App() {
                 : currentUser.role === "admin" 
                   ? "/admin/dashboard" 
                   : (currentUser.programId === "UNKNOWN" ? "/onboarding" : "/hub")
-            } />
+            } replace />
           } 
         />
         
